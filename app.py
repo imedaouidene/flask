@@ -1,8 +1,20 @@
 from flask import Flask, request, render_template
 import requests
-
+from prometheus_client import Counter, Histogram
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 app = Flask(__name__)
 
+# Define Prometheus metrics
+REQUEST_COUNT = Counter('request_count', 'App Request Count', ['method', 'endpoint'])
+REQUEST_LATENCY = Histogram('request_latency_seconds', 'Request latency in seconds', ['endpoint'])
+
+# Decorator to measure request latency
+def track_request_latency(func):
+    def wrapper(*args, **kwargs):
+        endpoint = request.endpoint
+        with REQUEST_LATENCY.labels(endpoint).time():
+            return func(*args, **kwargs)
+    return wrapper
 
 @app.route("/")
 def home():
@@ -37,3 +49,10 @@ def search():
     else:
 
         return render_template("fail.html")
+
+@app.route('/metrics')
+def metrics():
+    return generate_latest(), 200, {'Content-Type': CONTENT_TYPE_LATEST}
+
+if __name__ == "__main__":
+    app.run(debug=True)
